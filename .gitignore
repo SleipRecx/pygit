@@ -1,0 +1,5 @@
+.pygit
+dist
+pygit.egg-info
+.vscode
+src/__pycache__
