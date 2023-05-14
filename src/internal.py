@@ -32,6 +32,11 @@ def set_head(object_id):
         f.write(object_id.encode())
 
 
+def checkout(object_id):
+    restore_tree(object_id, commit=True)
+    set_head(object_id)
+
+
 def log(object_id):
     if object_id:
         try:
@@ -100,20 +105,29 @@ def hash_object(data, type_="blob"):
     return object_id
 
 
-def restore_tree(object_id, current_dir=CURRENT_DIR):
-    rm_rf_directory(current_dir)
-    objects = get_object(object_id, None).strip().split("\n")
-    for object in objects:
-        type_, object_id, object_path = object.split(" ")
-        current_path = f"{current_dir}/{object_path}"
-        if type_ == "blob":
-            content = get_object(object_id, "blob")
-            os.makedirs(os.path.dirname(current_path), exist_ok=True)
-            with open(current_path, "w") as out:
-                out.write(content)
+def restore_tree(object_id, current_dir=CURRENT_DIR, commit=False):
+    def _restore_tree(object_id, current_dir):
+        objects = get_object(object_id, None).strip().split("\n")
+        for object in objects:
+            type_, object_id, object_path = object.split(" ")
+            current_path = f"{current_dir}/{object_path}"
+            if type_ == "blob":
+                content = get_object(object_id, "blob")
+                os.makedirs(os.path.dirname(current_path), exist_ok=True)
+                with open(current_path, "w") as out:
+                    out.write(content)
 
-        if type_ == "tree":
-            restore_tree(object_id, current_path)
+            if type_ == "tree":
+                _restore_tree(object_id, current_path)
+
+    rm_rf_directory(current_dir)
+
+    if commit:
+        commit_content = get_object(object_id, None).strip().split("\n")
+        _, object_id = commit_content[0].split(" ")
+        _restore_tree(object_id, current_dir)
+    else:
+        _restore_tree(object_id, current_dir)
 
 
 def rm_rf_directory(dir=CURRENT_DIR):

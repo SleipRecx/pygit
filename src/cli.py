@@ -40,7 +40,15 @@ def parse_args():
     log_parser.set_defaults(func=log)
     log_parser.add_argument("object_id", nargs="?")
 
+    checkout_parser = commands.add_parser("checkout")
+    checkout_parser.set_defaults(func=checkout)
+    checkout_parser.add_argument("object_id")
+
     return parser.parse_args()
+
+
+def checkout(args):
+    internal.checkout(args.object_id)
 
 
 def log(args):
