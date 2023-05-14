@@ -3,3 +3,5 @@ dist
 pygit.egg-info
 .vscode
 src/__pycache__
+test_dir
+ __pycache__/
