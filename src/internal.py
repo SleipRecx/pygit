@@ -32,12 +32,43 @@ def set_head(object_id):
         f.write(object_id.encode())
 
 
-def commit(msg, user, time):
+def log(object_id):
+    if object_id:
+        try:
+            head = get_object(object_id, "commit")
+        except FileNotFoundError:
+            print("fatal: unknown revision not in the working tree.")
+            raise SystemExit(1)
+
+    else:
+        head = get_head()
+
+    if head is None:
+        print("No commits exists yet.")
+        return
+
+    current = head
+    while current is not None:
+        output = f"commit {current}\n"
+        current_content = get_object(current, "commit")
+        current = None
+        output += current_content + "\n"
+        for line in current_content.split("\n"):
+            if line.startswith("parent"):
+                current = line.split(" ")[1]
+                break
+        print(output)
+
+
+def commit(msg, user, time, force=False):
     tree = write_tree()
     commit_content = f"tree {tree}\n"
 
     parent = get_head()
     if parent is not None:
+        parent_tree = get_object(parent, "commit").split("\n")[0].split(" ")[1]
+        if parent_tree == tree and not force:
+            return "Nothing to commit, working tree clean"
         commit_content += f"parent {parent}\n"
 
     commit_content += f"author {user}\n" + f"time {time}\n\n" + msg

@@ -34,13 +34,24 @@ def parse_args():
     commit_parser = commands.add_parser("commit")
     commit_parser.set_defaults(func=commit)
     commit_parser.add_argument("-m", "--message", required=True)
+    commit_parser.add_argument("--force", action=argparse.BooleanOptionalAction)
+
+    log_parser = commands.add_parser("log")
+    log_parser.set_defaults(func=log)
+    log_parser.add_argument("object_id", nargs="?")
 
     return parser.parse_args()
 
 
+def log(args):
+    internal.log(args.object_id)
+
+
 def commit(args):
     datetime_string = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(internal.commit(args.message, os.environ["USER"], datetime_string))
+    print(
+        internal.commit(args.message, os.environ["USER"], datetime_string, args.force)
+    )
 
 
 def write_tree(_):
