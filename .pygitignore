@@ -1,6 +1,10 @@
-.pygit
-.git
-dist
-pygit.egg-info
-.vscode
-src/__pycache__
+# Ignored in prod mode
+./.pygit
+./.git
+./dist
+./pygit.egg-info
+./.vscode
+./src/__pycache__
+
+# ignored in testing mode
+testing/nested/ignored.gdpr

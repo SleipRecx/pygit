@@ -2,6 +2,9 @@ import hashlib
 import os
 
 GIT_DIR = ".pygit"
+
+# Used for DEV mode, such that no source code is
+# lost by running pygit locally with bugs.
 CURRENT_DIR = "testing"
 
 
@@ -14,7 +17,7 @@ def init():
 
 def get_ignored():
     with open(".pygitignore", "r") as f:
-        return set([f"./{path}" for path in f.read().split("\n")])
+        return set(row for row in f.read().split("\n") if not row.startswith("#"))
 
 
 def get_object(object_id, expected_type="blob"):
@@ -53,6 +56,10 @@ def restore_tree(object_id, current_dir=CURRENT_DIR):
 
         if type_ == "tree":
             restore_tree(object_id, current_path)
+
+
+def rm_rf_directory(dir=CURRENT_DIR):
+    pass
 
 
 def write_tree(dir=CURRENT_DIR):
