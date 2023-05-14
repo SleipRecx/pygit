@@ -5,6 +5,7 @@
 ./pygit.egg-info
 ./.vscode
 ./src/__pycache__
+./testing/nested/ignored.gdpr
 
 # ignored in testing mode
 testing/nested/ignored.gdpr

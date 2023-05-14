@@ -44,6 +44,7 @@ def hash_object(data, type_="blob"):
 
 
 def restore_tree(object_id, current_dir=CURRENT_DIR):
+    rm_rf_directory(current_dir)
     objects = get_object(object_id, None).strip().split("\n")
     for object in objects:
         type_, object_id, object_path = object.split(" ")
@@ -59,7 +60,26 @@ def restore_tree(object_id, current_dir=CURRENT_DIR):
 
 
 def rm_rf_directory(dir=CURRENT_DIR):
-    pass
+    ignored = get_ignored()
+
+    def _rm_rf_directory(dir):
+        if not os.path.exists(dir):
+            return
+
+        with os.scandir(dir) as it:
+            for entry in it:
+                full_path = f"{dir}/{entry.name}"
+                if full_path in ignored:
+                    continue
+
+                if entry.is_file(follow_symlinks=False):
+                    os.remove(entry)
+
+                elif entry.is_dir(follow_symlinks=False):
+                    pass
+                    # _rm_rf_directory(full_path)
+
+    _rm_rf_directory(dir)
 
 
 def write_tree(dir=CURRENT_DIR):
