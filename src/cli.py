@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import os
 
 import internal
@@ -30,7 +31,16 @@ def parse_args():
     restore_tree_parser.set_defaults(func=restore_tree)
     restore_tree_parser.add_argument("object_id")
 
+    commit_parser = commands.add_parser("commit")
+    commit_parser.set_defaults(func=commit)
+    commit_parser.add_argument("-m", "--message", required=True)
+
     return parser.parse_args()
+
+
+def commit(args):
+    datetime_string = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(internal.commit(args.message, os.environ["USER"], datetime_string))
 
 
 def write_tree(_):

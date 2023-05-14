@@ -20,6 +20,32 @@ def get_ignored():
         return set(row for row in f.read().split("\n") if not row.startswith("#"))
 
 
+def get_head():
+    if not os.path.exists(f"{GIT_DIR}/HEAD"):
+        return None
+    with open(f"{GIT_DIR}/HEAD", "rb") as f:
+        return f.read().decode()
+
+
+def set_head(object_id):
+    with open(f"{GIT_DIR}/HEAD", "wb") as f:
+        f.write(object_id.encode())
+
+
+def commit(msg, user, time):
+    tree = write_tree()
+    commit_content = f"tree {tree}\n"
+
+    parent = get_head()
+    if parent is not None:
+        commit_content += f"parent {parent}\n"
+
+    commit_content += f"author {user}\n" + f"time {time}\n\n" + msg
+    revision = hash_object(commit_content.encode(), "commit")
+    set_head(revision)
+    return commit_content
+
+
 def get_object(object_id, expected_type="blob"):
     with open(f"{GIT_DIR}/objects/{object_id}", "rb") as f:
         object = f.read()
@@ -76,8 +102,7 @@ def rm_rf_directory(dir=CURRENT_DIR):
                     os.remove(entry)
 
                 elif entry.is_dir(follow_symlinks=False):
-                    pass
-                    # _rm_rf_directory(full_path)
+                    _rm_rf_directory(full_path)
 
     _rm_rf_directory(dir)
 
