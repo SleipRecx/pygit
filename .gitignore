@@ -5,3 +5,5 @@ pygit.egg-info
 src/__pycache__
 test_dir
  __pycache__/
+ 
+.DS_Store

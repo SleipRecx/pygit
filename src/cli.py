@@ -33,8 +33,7 @@ def parse_args():
 
     commit_parser = commands.add_parser("commit")
     commit_parser.set_defaults(func=commit)
-    commit_parser.add_argument("-m", "--message", required=True)
-    commit_parser.add_argument("--force", action=argparse.BooleanOptionalAction)
+    commit_parser.add_argument("-m", "--message", required=False)
 
     log_parser = commands.add_parser("log")
     log_parser.set_defaults(func=log)
@@ -42,12 +41,39 @@ def parse_args():
 
     checkout_parser = commands.add_parser("checkout")
     checkout_parser.set_defaults(func=checkout)
-    checkout_parser.add_argument("object_id")
+    checkout_parser.add_argument("object_id"),
+    checkout_parser.add_argument(
+        "-b", "--branch", action=argparse.BooleanOptionalAction
+    )
+
+    tag_parser = commands.add_parser("tag")
+    tag_parser.set_defaults(func=tag)
+    tag_parser.add_argument("-a", "--add", required=False)
+
+    status_parser = commands.add_parser("status")
+    status_parser.set_defaults(func=status)
 
     return parser.parse_args()
 
 
+def status(_):
+    current_branch = internal.get_current_branch()
+    print(f"On branch {current_branch}")
+
+
+def tag(args):
+    if args.add:
+        internal.create_tag(args.add)
+    else:
+        tags = internal.get_tags()
+        for tag in tags:
+            print(tag)
+
+
 def checkout(args):
+    if args.branch:
+        internal.branch(args.object_id)
+        return
     internal.checkout(args.object_id)
 
 
@@ -56,10 +82,13 @@ def log(args):
 
 
 def commit(args):
+    if not args.message:
+        open(internal.COMMIT_MSG_PATH, "w").close()
+        os.system(f"vi {internal.COMMIT_MSG_PATH}")
+        args.message = open(internal.COMMIT_MSG_PATH, "r").read()
+
     datetime_string = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(
-        internal.commit(args.message, os.environ["USER"], datetime_string, args.force)
-    )
+    print(internal.commit(args.message, os.environ["USER"], datetime_string))
 
 
 def write_tree(_):

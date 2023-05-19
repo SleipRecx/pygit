@@ -8,11 +8,30 @@ GIT_DIR = ".pygit"
 CURRENT_DIR = "testing"
 
 
+COMMIT_MSG_PATH = f"{GIT_DIR}/COMMIT_EDITMSG"
+
+
+def create_dir_or_file_if_not_exists(path, type_="dir"):
+    try:
+        if type_ == "dir":
+            os.makedirs(path)
+        if type_ == "file":
+            open(path, "x")
+        return True
+    except FileExistsError:
+        return False
+
+
 def init():
-    if not os.path.exists(GIT_DIR):
-        os.makedirs(GIT_DIR)
-    if not os.path.exists(f"{GIT_DIR}/objects"):
-        os.makedirs(f"{GIT_DIR}/objects")
+    create_dir_or_file_if_not_exists(GIT_DIR)
+    create_dir_or_file_if_not_exists(f"{GIT_DIR}/objects")
+    create_dir_or_file_if_not_exists(f"{GIT_DIR}/refs")
+    create_dir_or_file_if_not_exists(f"{GIT_DIR}/refs/heads")
+    create_dir_or_file_if_not_exists(f"{GIT_DIR}/refs/tags")
+    # needs to init 'main'
+    create_dir_or_file_if_not_exists(f"{GIT_DIR}/HEAD", "file")
+    # Needs correct permissions
+    create_dir_or_file_if_not_exists(f"{GIT_DIR}/COMMIT_EDITMSG", "file")
 
 
 def get_ignored():
@@ -20,21 +39,70 @@ def get_ignored():
         return set(row for row in f.read().split("\n") if not row.startswith("#"))
 
 
-def get_head():
-    if not os.path.exists(f"{GIT_DIR}/HEAD"):
-        return None
+def get_current_branch():
     with open(f"{GIT_DIR}/HEAD", "rb") as f:
         return f.read().decode()
 
 
-def set_head(object_id):
-    with open(f"{GIT_DIR}/HEAD", "wb") as f:
+def set_current_branch(name):
+    with open(f"{GIT_DIR}/HEAD", "w") as f:
+        f.write(name)
+
+
+def get_ref(ref_type, name):
+    if not os.path.exists(f"{GIT_DIR}/refs/{ref_type}/{name}"):
+        return None
+    with open(f"{GIT_DIR}/refs/{ref_type}/{name}", "rb") as f:
+        return f.read().decode()
+
+
+def set_ref(object_id, ref_type, name):
+    with open(f"{GIT_DIR}/refs/{ref_type}/{name}", "wb") as f:
         f.write(object_id.encode())
 
 
-def checkout(object_id):
+def branch(name):
+    object_id = get_ref("heads", name)
+    if object_id:
+        print(f"Branch '{name}' already exists.")
+        return
+
+    current_branch = get_current_branch()
+    object_id = get_ref("heads", current_branch)
+    set_ref(object_id, "heads", name)
+    set_current_branch(name)
+
+
+def checkout(object_id_or_tag_or_branch):
+    if os.path.exists(f"{GIT_DIR}/objects/{object_id_or_tag_or_branch}"):
+        object_id = object_id_or_tag_or_branch
+    elif os.path.exists(f"{GIT_DIR}/refs/heads/{object_id_or_tag_or_branch}"):
+        with open(f"{GIT_DIR}/refs/heads/{object_id_or_tag_or_branch}", "rb") as f:
+            object_id = f.read().decode()
+            set_current_branch(object_id_or_tag_or_branch)
+    elif os.path.exists(f"{GIT_DIR}/refs/tags/{object_id_or_tag_or_branch}"):
+        with open(f"{GIT_DIR}/refs/tags/{object_id_or_tag_or_branch}", "rb") as f:
+            object_id = f.read().decode()
+    else:
+        print("Unkown revision")
+        return
+
     restore_tree(object_id, commit=True)
-    set_head(object_id)
+    set_ref(object_id, "heads", get_current_branch())
+
+
+def get_tags():
+    with os.scandir(f"{GIT_DIR}/refs/tags") as it:
+        return [file.name for file in it]
+
+
+def create_tag(tag):
+    existing = get_ref("tags", tag)
+    if existing:
+        print("Tag already exists")
+    else:
+        head = get_ref("heads", get_current_branch())
+        set_ref(head, "tags", tag)
 
 
 def log(object_id):
@@ -46,7 +114,7 @@ def log(object_id):
             raise SystemExit(1)
 
     else:
-        head = get_head()
+        head = get_ref("heads", get_current_branch())
 
     if head is None:
         print("No commits exists yet.")
@@ -65,20 +133,21 @@ def log(object_id):
         print(output)
 
 
-def commit(msg, user, time, force=False):
+def commit(msg, user, time):
     tree = write_tree()
     commit_content = f"tree {tree}\n"
 
-    parent = get_head()
+    parent = get_ref("heads", get_current_branch())
+    # TODO: move this out to a 'working_tree_is_clean' function
     if parent is not None:
         parent_tree = get_object(parent, "commit").split("\n")[0].split(" ")[1]
-        if parent_tree == tree and not force:
+        if parent_tree == tree:
             return "Nothing to commit, working tree clean"
         commit_content += f"parent {parent}\n"
 
     commit_content += f"author {user}\n" + f"time {time}\n\n" + msg
     revision = hash_object(commit_content.encode(), "commit")
-    set_head(revision)
+    set_ref(revision, "heads", get_current_branch())
     return commit_content
 
 
@@ -121,7 +190,6 @@ def restore_tree(object_id, current_dir=CURRENT_DIR, commit=False):
                 _restore_tree(object_id, current_path)
 
     rm_rf_directory(current_dir)
-
     if commit:
         commit_content = get_object(object_id, None).strip().split("\n")
         _, object_id = commit_content[0].split(" ")
