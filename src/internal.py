@@ -2,36 +2,46 @@ import hashlib
 import os
 
 GIT_DIR = ".pygit"
+DEFAULT_BRANCH_NAME = "main"
+COMMIT_MSG_PATH = f"{GIT_DIR}/COMMIT_EDITMSG"
 
 # Used for DEV mode, such that no source code is
 # lost by running pygit locally with bugs.
 CURRENT_DIR = "testing"
 
 
-COMMIT_MSG_PATH = f"{GIT_DIR}/COMMIT_EDITMSG"
-
-
-def create_dir_or_file_if_not_exists(path, type_="dir"):
+def create_dir_if_not_exists(path):
     try:
-        if type_ == "dir":
-            os.makedirs(path)
-        if type_ == "file":
-            open(path, "x")
+        os.makedirs(path)
         return True
     except FileExistsError:
         return False
 
 
 def init():
-    create_dir_or_file_if_not_exists(GIT_DIR)
-    create_dir_or_file_if_not_exists(f"{GIT_DIR}/objects")
-    create_dir_or_file_if_not_exists(f"{GIT_DIR}/refs")
-    create_dir_or_file_if_not_exists(f"{GIT_DIR}/refs/heads")
-    create_dir_or_file_if_not_exists(f"{GIT_DIR}/refs/tags")
-    # needs to init 'main'
-    create_dir_or_file_if_not_exists(f"{GIT_DIR}/HEAD", "file")
-    # Needs correct permissions
-    create_dir_or_file_if_not_exists(f"{GIT_DIR}/COMMIT_EDITMSG", "file")
+    create_dir_if_not_exists(GIT_DIR)
+    create_dir_if_not_exists(f"{GIT_DIR}/objects")
+    create_dir_if_not_exists(f"{GIT_DIR}/refs")
+    create_dir_if_not_exists(f"{GIT_DIR}/refs/heads")
+    create_dir_if_not_exists(f"{GIT_DIR}/refs/tags")
+
+    try:
+        with open(f"{GIT_DIR}/HEAD", "x") as f:
+            f.write(DEFAULT_BRANCH_NAME)
+    except FileExistsError:
+        pass
+
+    try:
+        # Needs correct permissions
+        open(f"{GIT_DIR}/COMMIT_EDITMSG", "x").close()
+    except FileExistsError:
+        pass
+
+
+def head_is_detached():
+    with open(f"{GIT_DIR}/HEAD", "rb") as f:
+        object_id_or_branch_name = f.read().decode()
+        return os.path.exists(f"{GIT_DIR}/objects/{object_id_or_branch_name}")
 
 
 def get_ignored():
@@ -39,14 +49,42 @@ def get_ignored():
         return set(row for row in f.read().split("\n") if not row.startswith("#"))
 
 
-def get_current_branch():
+def status():
+    with open(f"{GIT_DIR}/HEAD", "rb") as f:
+        object_id_or_branch_name = f.read().decode()
+
+    if head_is_detached():
+        print(f"HEAD detached at {object_id_or_branch_name}")
+        return
+
+    msg = f"On branch '{object_id_or_branch_name}'\n"
+
+    if is_working_tree_clean():
+        msg += "nothing to commit, working tree clean"
+    else:
+        msg += "there are changes staged for commit"
+
+    print(msg)
+
+
+def get_HEAD():
+    with open(f"{GIT_DIR}/HEAD", "rb") as f:
+        object_id_or_branch_name = f.read().decode()
+        if head_is_detached():
+            return object_id_or_branch_name
+
+        branch_object_id = get_ref("heads", object_id_or_branch_name)
+        return branch_object_id
+
+
+def get_current_branch_name():
     with open(f"{GIT_DIR}/HEAD", "rb") as f:
         return f.read().decode()
 
 
-def set_current_branch(name):
+def set_HEAD(object_id_or_branch_name):
     with open(f"{GIT_DIR}/HEAD", "w") as f:
-        f.write(name)
+        f.write(object_id_or_branch_name)
 
 
 def get_ref(ref_type, name):
@@ -61,34 +99,34 @@ def set_ref(object_id, ref_type, name):
         f.write(object_id.encode())
 
 
-def branch(name):
+def branch_out(name):
     object_id = get_ref("heads", name)
     if object_id:
         print(f"Branch '{name}' already exists.")
         return
 
-    current_branch = get_current_branch()
-    object_id = get_ref("heads", current_branch)
-    set_ref(object_id, "heads", name)
-    set_current_branch(name)
+    HEAD = get_HEAD()
+    set_ref(HEAD, "heads", name)
+    set_HEAD(name)
 
 
 def checkout(object_id_or_tag_or_branch):
     if os.path.exists(f"{GIT_DIR}/objects/{object_id_or_tag_or_branch}"):
         object_id = object_id_or_tag_or_branch
+        set_HEAD(object_id)
     elif os.path.exists(f"{GIT_DIR}/refs/heads/{object_id_or_tag_or_branch}"):
         with open(f"{GIT_DIR}/refs/heads/{object_id_or_tag_or_branch}", "rb") as f:
             object_id = f.read().decode()
-            set_current_branch(object_id_or_tag_or_branch)
+            set_HEAD(object_id_or_tag_or_branch)
     elif os.path.exists(f"{GIT_DIR}/refs/tags/{object_id_or_tag_or_branch}"):
         with open(f"{GIT_DIR}/refs/tags/{object_id_or_tag_or_branch}", "rb") as f:
             object_id = f.read().decode()
+            set_HEAD(object_id)
     else:
-        print("Unkown revision")
+        print(f"Unkown revision '{object_id_or_tag_or_branch}'")
         return
 
     restore_tree(object_id, commit=True)
-    set_ref(object_id, "heads", get_current_branch())
 
 
 def get_tags():
@@ -101,26 +139,26 @@ def create_tag(tag):
     if existing:
         print("Tag already exists")
     else:
-        head = get_ref("heads", get_current_branch())
-        set_ref(head, "tags", tag)
+        HEAD = get_HEAD()
+        set_ref(HEAD, "tags", tag)
 
 
 def log(object_id):
     if object_id:
         try:
-            head = get_object(object_id, "commit")
+            get_object(object_id, "commit")
         except FileNotFoundError:
             print("fatal: unknown revision not in the working tree.")
             raise SystemExit(1)
 
     else:
-        head = get_ref("heads", get_current_branch())
+        object_id = get_HEAD()
 
-    if head is None:
+    if object_id is None:
         print("No commits exists yet.")
         return
 
-    current = head
+    current = object_id
     while current is not None:
         output = f"commit {current}\n"
         current_content = get_object(current, "commit")
@@ -133,21 +171,49 @@ def log(object_id):
         print(output)
 
 
-def commit(msg, user, time):
+def is_working_tree_clean():
     tree = write_tree()
-    commit_content = f"tree {tree}\n"
-
-    parent = get_ref("heads", get_current_branch())
-    # TODO: move this out to a 'working_tree_is_clean' function
+    parent = get_HEAD()
     if parent is not None:
         parent_tree = get_object(parent, "commit").split("\n")[0].split(" ")[1]
         if parent_tree == tree:
-            return "Nothing to commit, working tree clean"
+            return True
+        return False
+
+    return False
+
+
+def commit(msg, user, time):
+    if head_is_detached():
+        print("Commit on detached HEAD is not supported.")
+        return
+
+    if is_working_tree_clean():
+        print("Nothing to commit, working tree clean")
+        return
+
+    parent = get_HEAD()
+    tree = write_tree()
+
+    commit_content = f"tree {tree}\n"
+
+    if parent:
         commit_content += f"parent {parent}\n"
 
+    # Strip out comments from commit msg
+    msg = "\n".join([line for line in msg.split("\n") if not line.startswith("#")])
+
     commit_content += f"author {user}\n" + f"time {time}\n\n" + msg
+
     revision = hash_object(commit_content.encode(), "commit")
-    set_ref(revision, "heads", get_current_branch())
+
+    if not parent:
+        set_HEAD(DEFAULT_BRANCH_NAME)
+        set_ref(revision, "heads", DEFAULT_BRANCH_NAME)
+    else:
+        branch_name = get_current_branch_name()
+        set_ref(revision, "heads", branch_name)
+
     return commit_content
 
 

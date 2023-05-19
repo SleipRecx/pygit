@@ -4,8 +4,6 @@ import os
 
 import internal
 
-GIT_DIR = ".pygit"
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -57,8 +55,7 @@ def parse_args():
 
 
 def status(_):
-    current_branch = internal.get_current_branch()
-    print(f"On branch {current_branch}")
+    internal.status()
 
 
 def tag(args):
@@ -72,7 +69,7 @@ def tag(args):
 
 def checkout(args):
     if args.branch:
-        internal.branch(args.object_id)
+        internal.branch_out(args.object_id)
         return
     internal.checkout(args.object_id)
 
@@ -87,7 +84,7 @@ def commit(args):
             info = (
                 "\n# Please enter the commit message for your changes. Lines starting\n"
                 + "# with '#' will be ignored, and an empty message aborts the commit."
-                + f"\n#\n# On branch '{internal.get_current_branch()}'"
+                + f"\n#\n# On branch '{internal.get_HEAD()}'"
             )
             f.write(info)
         os.system(f"vi {internal.COMMIT_MSG_PATH}")
