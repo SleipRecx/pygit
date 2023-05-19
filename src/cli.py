@@ -83,7 +83,13 @@ def log(args):
 
 def commit(args):
     if not args.message:
-        open(internal.COMMIT_MSG_PATH, "w").close()
+        with open(internal.COMMIT_MSG_PATH, "w") as f:
+            info = (
+                "\n# Please enter the commit message for your changes. Lines starting\n"
+                + "# with '#' will be ignored, and an empty message aborts the commit."
+                + f"\n#\n# On branch '{internal.get_current_branch()}'"
+            )
+            f.write(info)
         os.system(f"vi {internal.COMMIT_MSG_PATH}")
         args.message = open(internal.COMMIT_MSG_PATH, "r").read()
 
