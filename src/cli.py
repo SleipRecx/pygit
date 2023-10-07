@@ -51,7 +51,14 @@ def parse_args():
     status_parser = commands.add_parser("status")
     status_parser.set_defaults(func=status)
 
+    branch_parser = commands.add_parser("branch")
+    branch_parser.set_defaults(func=branch)
+
     return parser.parse_args()
+
+
+def branch(_):
+    internal.show_branches()
 
 
 def status(_):

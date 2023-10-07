@@ -110,6 +110,16 @@ def branch_out(name):
     set_HEAD(name)
 
 
+def show_branches():
+    current = get_current_branch_name()
+    with os.scandir(f"{GIT_DIR}/refs/heads") as it:
+        for file in it:
+            if file.name == current:
+                print(f"* {file.name}")
+            else:
+                print(file.name)
+
+
 def checkout(object_id_or_tag_or_branch):
     if os.path.exists(f"{GIT_DIR}/objects/{object_id_or_tag_or_branch}"):
         object_id = object_id_or_tag_or_branch
